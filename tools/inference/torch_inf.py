@@ -43,7 +43,7 @@ def process_image(model, device, file_path):
     orig_size = torch.tensor([[w, h]]).to(device)
 
     transforms = T.Compose([
-        T.Resize((640, 640)),
+        T.Resize((192, 192)),
         T.ToTensor(),
     ])
     im_data = transforms(im_pil).unsqueeze(0).to(device)
@@ -67,7 +67,7 @@ def process_video(model, device, file_path):
     out = cv2.VideoWriter('torch_results.mp4', fourcc, fps, (orig_w, orig_h))
 
     transforms = T.Compose([
-        T.Resize((640, 640)),
+        T.Resize((192, 192)),
         T.ToTensor(),
     ])
 
@@ -124,7 +124,7 @@ def main(args):
         raise AttributeError('Only support resume to load model.state_dict by now.')
 
     # Load train mode state and convert to deploy mode
-    cfg.model.load_state_dict(state)
+    cfg.model.load_state_dict(state,strict=False)
 
     class Model(nn.Module):
         def __init__(self):

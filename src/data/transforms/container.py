@@ -11,7 +11,7 @@ import torchvision.transforms.v2 as T
 
 from typing import Any, Dict, List, Optional
 
-from ._transforms import EmptyTransform
+from ._transforms import EmptyTransform, AlbumentationsTransform
 from ...core import register, GLOBAL_CONFIG
 torchvision.disable_beta_transforms_warning()
 
@@ -24,17 +24,19 @@ class Compose(T.Compose):
             for op in ops:
                 if isinstance(op, dict):
                     name = op.pop('type')
-                    transfom = getattr(GLOBAL_CONFIG[name]['_pymodule'], GLOBAL_CONFIG[name]['_name'])(**op)
-                    transforms.append(transfom)
+                    # Update to handle custom AlbumentationsTransform
+                    if name == 'AlbumentationsTransform':
+                        transform = AlbumentationsTransform(**op)
+                    else:
+                        transform = getattr(GLOBAL_CONFIG[name]['_pymodule'], GLOBAL_CONFIG[name]['_name'])(**op)
+                    transforms.append(transform)
                     op['type'] = name
-
                 elif isinstance(op, nn.Module):
                     transforms.append(op)
-
                 else:
-                    raise ValueError('')
+                    raise ValueError(f'Unsupported transform: {op}')
         else:
-            transforms =[EmptyTransform(), ]
+            transforms = [EmptyTransform(), ]
 
         super().__init__(transforms=transforms)
 

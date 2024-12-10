@@ -16,12 +16,20 @@ import PIL.Image
 from typing import Any, Dict, List, Optional
 
 from .._misc import convert_to_tv_tensor, _boxes_keys
-from .._misc import Image, Video, Mask, BoundingBoxes
+from .._misc import Image, Video, Mask, BoundingBoxes, BoundingBoxFormat
 from .._misc import SanitizeBoundingBoxes
 
 from ...core import register
 torchvision.disable_beta_transforms_warning()
 
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+import numpy as np
+from torchvision.ops import box_convert
+from PIL import Image as PILImage
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+plt.switch_backend('TkAgg')
 
 RandomPhotometricDistort = register()(T.RandomPhotometricDistort)
 RandomZoomOut = register()(T.RandomZoomOut)
@@ -135,3 +143,87 @@ class ConvertPILImage(T.Transform):
         inpt = Image(inpt)
 
         return inpt
+
+@register()
+class AlbumentationsTransform(T.Transform):
+    def __init__(self):
+        super().__init__()
+        self.transform = A.Compose([
+            A.Downscale(scale_min=0.125, scale_max=0.999, p=0.75),
+            A.RandomRotate90(p=0.5),
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.5),
+            A.Blur(p=0.1),
+            A.MedianBlur(p=0.2),
+            A.ToGray(p=0.01),
+            A.CLAHE(p=0.01),
+            A.ImageCompression(quality_lower=75, p=0.1),
+        ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['labels']))
+
+    def forward(self, inpt):
+        # Unpack the input tuple
+        image, target, metadata = inpt
+
+        # Convert PIL Image to NumPy array
+        image_np = np.array(image)
+
+        # Extract bounding boxes and labels
+        bboxes = target['boxes'].numpy()  # Access the tensor from BoundingBoxes
+        labels = target['labels'].numpy()
+
+        # Convert tensors to lists for Albumentations
+        bboxes = bboxes.tolist()
+        labels = labels.tolist()
+
+        # Apply Albumentations transformations
+        transformed = self.transform(image=image_np, bboxes=bboxes, labels=labels)
+
+        # Convert transformed image back to PIL Image
+        transformed_image = PILImage.fromarray(transformed['image'])
+        
+
+        # Convert bounding boxes and labels back to tensors
+        transformed_bboxes = torch.tensor(transformed['bboxes'], dtype=torch.float32)
+        # transformed_bboxes = F.to_tensor(transformed_bboxes)
+        transformed_labels = torch.tensor(transformed['labels'], dtype=torch.int64)
+        # transformed_labels = F.to_tensor(transformed_bboxes)
+
+        # Reconstruct the BoundingBoxes object
+        canvas_size = transformed_image.size[::-1]  # (height, width)
+        transformed_bboxes = BoundingBoxes(
+            transformed_bboxes,
+            format=BoundingBoxFormat.XYXY,
+            canvas_size=canvas_size
+        )
+        transformed_image = F.to_tensor(transformed_image)
+
+        # Update target with transformed data
+        target['boxes'] = transformed_bboxes
+        target['labels'] = transformed_labels
+
+        # self.plot_and_save(transformed_image, transformed_bboxes, metadata)
+
+        return transformed_image, target, metadata
+    
+    
+    def plot_and_save(self, image, bboxes, metadata, save_path='transformed_image.png'):
+            # Convert tensor image to numpy array
+            image_np = image.permute(1, 2, 0).numpy()
+
+            # Create a figure and axis
+            fig, ax = plt.subplots(1)
+
+            # Display the image
+            ax.imshow(image_np)
+
+            # Add bounding boxes
+            for bbox in bboxes:
+                x_min, y_min, x_max, y_max = bbox
+                width = x_max - x_min
+                height = y_max - y_min
+                rect = patches.Rectangle((x_min, y_min), width, height, linewidth=1, edgecolor='r', facecolor='none')
+                ax.add_patch(rect)
+
+            # Save the figure
+            plt.savefig(save_path)
+            plt.close(fig)

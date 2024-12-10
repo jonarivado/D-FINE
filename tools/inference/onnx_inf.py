@@ -53,7 +53,7 @@ def draw(images, labels, boxes, scores, ratios, paddings, thrh=0.4):
 
 def process_image(sess, im_pil):
     # Resize image while preserving aspect ratio
-    resized_im_pil, ratio, pad_w, pad_h = resize_with_aspect_ratio(im_pil, 640)
+    resized_im_pil, ratio, pad_w, pad_h = resize_with_aspect_ratio(im_pil, 192)
     orig_size = torch.tensor([[resized_im_pil.size[1], resized_im_pil.size[0]]])
 
     transforms = T.Compose([

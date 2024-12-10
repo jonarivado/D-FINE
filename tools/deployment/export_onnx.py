@@ -51,8 +51,8 @@ def main(args, ):
 
     model = Model()
 
-    data = torch.rand(32, 3, 640, 640)
-    size = torch.tensor([[640, 640]])
+    data = torch.rand(32, 3, 192, 192)
+    size = torch.tensor([[192, 192]])
     _ = model(data, size)
 
     dynamic_axes = {
@@ -84,7 +84,7 @@ def main(args, ):
         import onnx
         import onnxsim
         dynamic = True
-        # input_shapes = {'images': [1, 3, 640, 640], 'orig_target_sizes': [1, 2]} if dynamic else None
+        # input_shapes = {'images': [1, 3, 192, 192], 'orig_target_sizes': [1, 2]} if dynamic else None
         input_shapes = {'images': data.shape, 'orig_target_sizes': size.shape} if dynamic else None
         onnx_model_simplify, check = onnxsim.simplify(output_file, test_input_shapes=input_shapes)
         onnx.save(onnx_model_simplify, output_file)
